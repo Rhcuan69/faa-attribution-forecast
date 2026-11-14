@@ -99,6 +99,17 @@ function windowSigma(prices: number[]): number {
   return Math.min(SIGMA_MAX, Math.max(SIGMA_MIN, sigma));
 }
 
+/** One horizon row: the five quantiles h minutes after the checkpoint. */
+function quantileRow(x: number, sigma: number, h: number): number[] {
+  const spread = sigma * Math.sqrt(h);
+  const row = Z_SCORES.map((z, k) => round6(x + z * spread * SPREAD_MULT[k]));
+  // Rounding can (rarely) invert two neighbours; keep the row ordered.
+  for (let k = 1; k < row.length; k++) {
+    if (row[k] < row[k - 1]) row[k] = row[k - 1];
+  }
+  return row;
+}
+
 /** One market's forecast: a row of five quantiles for each horizon minute. */
 function forecastMarket(market: CaseMarket, horizon: number): number[][] {
   if (market.prices.length === 0) {
@@ -108,13 +119,7 @@ function forecastMarket(market: CaseMarket, horizon: number): number[][] {
   const sigma = windowSigma(market.prices);
   const rows: number[][] = [];
   for (let h = 1; h <= horizon; h++) {
-    const spread = sigma * Math.sqrt(h);
-    const row = Z_SCORES.map((z, k) => round6(x + z * spread * SPREAD_MULT[k]));
-    // Rounding can (rarely) invert two neighbours; keep the row ordered.
-    for (let k = 1; k < row.length; k++) {
-      if (row[k] < row[k - 1]) row[k] = row[k - 1];
-    }
-    rows.push(row);
+    rows.push(quantileRow(x, sigma, h));
   }
   return rows;
 }
